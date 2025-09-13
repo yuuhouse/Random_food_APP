@@ -47,7 +47,7 @@ class FoodDataStore(private val context: Context) {
                 val decodedMap = Json.decodeFromString(MapSerializer(String.serializer(), ListSerializer(String.serializer())), jsonString)
                 if (jsonString == "{}" && decodedMap.isEmpty()) {
                     mapOf( // Provide default restaurants
-                        "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123"),
+                        "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123", "5566"),
                         "工作區" to listOf("公司餐廳", "附近便當店", "能量補給站", "活力輕食沙拉", "咖啡與簡餐"),
                         "遠區" to listOf("景觀餐廳A", "特色小吃B", "秘境風味餐館", "山頂咖啡屋", "海邊燒烤BBQ")
                     )
@@ -56,7 +56,7 @@ class FoodDataStore(private val context: Context) {
                 }
             } catch (_: Exception) { // Catch any deserialization errors
                 mapOf(
-                    "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123"),
+                    "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123", "5566"),
                     "工作區" to listOf("公司餐廳", "附近便當店", "能量補給站", "活力輕食沙拉", "咖啡與簡餐"),
                     "遠區" to listOf("景觀餐廳A", "特色小吃B", "秘境風味餐館", "山頂咖啡屋", "海邊燒烤BBQ")
                 )
