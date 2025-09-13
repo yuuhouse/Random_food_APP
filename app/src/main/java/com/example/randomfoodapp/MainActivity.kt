@@ -5,21 +5,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+// import androidx.compose.foundation.clickable // No longer needed for the Box approach in AppDropdownMenu
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
+// import androidx.compose.material.icons.filled.ArrowDropDown // Replaced by ExposedDropdownMenuDefaults.TrailingIcon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -31,11 +32,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FoodGeneratorApp() {
     val context = LocalContext.current
     val foodDataStore = remember { FoodDataStore(context) }
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     var categories by remember { mutableStateOf(emptyList<String>()) }
     var restaurants by remember { mutableStateOf(emptyMap<String, List<String>>()) }
@@ -47,23 +50,20 @@ fun FoodGeneratorApp() {
     var categoriesInitialLoadDone by remember { mutableStateOf(false) }
     var restaurantsInitialLoadDone by remember { mutableStateOf(false) }
 
-    // Load categories from DataStore
     LaunchedEffect(foodDataStore) {
         foodDataStore.categoriesFlow.collect { loadedCategories ->
             categories = loadedCategories
-            categoriesInitialLoadDone = true
+            if (!categoriesInitialLoadDone) categoriesInitialLoadDone = true
         }
     }
 
-    // Load restaurants from DataStore
     LaunchedEffect(foodDataStore) {
         foodDataStore.restaurantsFlow.collect { loadedRestaurants ->
             restaurants = loadedRestaurants
-            restaurantsInitialLoadDone = true
+            if (!restaurantsInitialLoadDone) restaurantsInitialLoadDone = true
         }
     }
 
-    // Effect to manage selectedCategory based on loaded/updated categories
     LaunchedEffect(categories, categoriesInitialLoadDone) {
         if (categoriesInitialLoadDone) {
             if (selectedCategory.isBlank() || !categories.contains(selectedCategory)) {
@@ -72,7 +72,6 @@ fun FoodGeneratorApp() {
         }
     }
 
-    // Save categories when they change after initial load
     LaunchedEffect(categories) {
         if (categoriesInitialLoadDone) {
             scope.launch {
@@ -81,7 +80,6 @@ fun FoodGeneratorApp() {
         }
     }
 
-    // Save restaurants when they change after initial load
     LaunchedEffect(restaurants) {
         if (restaurantsInitialLoadDone) {
             scope.launch {
@@ -124,12 +122,12 @@ fun FoodGeneratorApp() {
                 Button(onClick = {
                     if (newCategory.isNotBlank() && newCategory !in categories) {
                         categories = categories + newCategory
-                        // Ensure new category has an entry in restaurants map
                         if (!restaurants.containsKey(newCategory)){
                             restaurants = restaurants + (newCategory to emptyList())
                         }
                         selectedCategory = newCategory
                         newCategory = ""
+                        keyboardController?.hide()
                     }
                 }) {
                     Text("添加分類")
@@ -138,8 +136,7 @@ fun FoodGeneratorApp() {
                     if (categories.size > 1 && categories.contains(selectedCategory)) {
                         val categoryToRemove = selectedCategory
                         categories = categories - categoryToRemove
-                        restaurants = restaurants - categoryToRemove // This also removes the restaurants for that category
-                        // selectedCategory will be updated by LaunchedEffect(categories, ...)
+                        restaurants = restaurants - categoryToRemove
                     }
                 }) {
                     Text("刪除分類")
@@ -172,6 +169,28 @@ fun FoodGeneratorApp() {
                     }
                 }
             }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = newRestaurant,
+                    onValueChange = { newRestaurant = it },
+                    label = { Text("新餐廳") },
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = {
+                    if (newRestaurant.isNotBlank() && selectedCategory.isNotBlank() && categories.contains(selectedCategory)) {
+                        val currentList = restaurants[selectedCategory] ?: emptyList()
+                        restaurants = restaurants + (selectedCategory to (currentList + newRestaurant))
+                        newRestaurant = ""
+                        keyboardController?.hide()
+                    }
+                }) {
+                    Text("添加餐廳")
+                }
+            }
 
             Button(
                 onClick = {
@@ -189,31 +208,11 @@ fun FoodGeneratorApp() {
             }
 
             Text(randomResult, fontSize = 16.sp)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = newRestaurant,
-                    onValueChange = { newRestaurant = it },
-                    label = { Text("新餐廳") },
-                    modifier = Modifier.weight(1f)
-                )
-                Button(onClick = {
-                    if (newRestaurant.isNotBlank() && selectedCategory.isNotBlank() && categories.contains(selectedCategory)) {
-                        val currentList = restaurants[selectedCategory] ?: emptyList()
-                        restaurants = restaurants + (selectedCategory to (currentList + newRestaurant))
-                        newRestaurant = ""
-                    }
-                }) {
-                    Text("添加餐廳")
-                }
-            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // Opt-in for ExposedDropdownMenuBox
 @Composable
 fun AppDropdownMenu(
     items: List<String>,
@@ -222,31 +221,43 @@ fun AppDropdownMenu(
     label: String
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
             value = if (selectedItem.isNotBlank() && items.contains(selectedItem)) selectedItem else label,
-            onValueChange = {},
+            onValueChange = {}, // Not used as it's read-only for selection purposes
             label = { Text(label) },
             readOnly = true,
-            trailingIcon = {
-                IconButton(onClick = { expanded = true }) {
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor() // Important for ExposedDropdownMenuBox
+                .fillMaxWidth()
         )
-        androidx.compose.material3.DropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            items.forEach { item ->
+            if (items.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text(item) },
-                    onClick = {
-                        onItemSelected(item)
-                        expanded = false
-                    }
+                    text = { Text("沒有可選分類") },
+                    onClick = { expanded = false },
+                    enabled = false
                 )
+            } else {
+                items.forEach { item ->
+                    DropdownMenuItem(
+                        text = { Text(item) },
+                        onClick = {
+                            onItemSelected(item)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -255,7 +266,5 @@ fun AppDropdownMenu(
 @Preview
 @Composable
 fun FoodGeneratorAppPreview() {
-    // Preview might not work correctly with DataStore context.
-    // For a working preview, you might need to pass mock data or a fake DataStore.
     FoodGeneratorApp()
 }
