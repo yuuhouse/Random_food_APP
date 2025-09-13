@@ -234,7 +234,7 @@ fun AppDropdownMenu(
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor() // Important for ExposedDropdownMenuBox
+                .menuAnchor(MenuAnchorType.PrimaryEditable) // Updated to use MenuAnchorType
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(
