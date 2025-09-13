@@ -26,27 +26,39 @@ class FoodDataStore(private val context: Context) {
     // Flow to get categories
     val categoriesFlow: Flow<List<String>> = context.dataStore.data
         .map {
-            val jsonString = it[CATEGORIES_KEY] ?: "[]"
+            val jsonString = it[CATEGORIES_KEY] ?: "[]" // Default to empty JSON array string if null
             try {
-                Json.decodeFromString(ListSerializer(String.serializer()), jsonString)
-            } catch (_: Exception) { // Changed e to _
-                // Log error or handle corrupted data - return default
-                listOf("住宿區", "工作區", "遠區") // Default if error or no data
+                val decodedList = Json.decodeFromString(ListSerializer(String.serializer()), jsonString)
+                if (jsonString == "[]" && decodedList.isEmpty()) {
+                    listOf("住宿區", "工作區", "遠區") // Provide default categories
+                } else {
+                    decodedList
+                }
+            } catch (_: Exception) { // Catch any deserialization errors
+                listOf("住宿區", "工作區", "遠區")
             }
         }
 
     // Flow to get restaurants
     val restaurantsFlow: Flow<Map<String, List<String>>> = context.dataStore.data
         .map {
-            val jsonString = it[RESTAURANTS_KEY] ?: "{}"
+            val jsonString = it[RESTAURANTS_KEY] ?: "{}" // Default to empty JSON object string if null
             try {
-                Json.decodeFromString(MapSerializer(String.serializer(), ListSerializer(String.serializer())), jsonString)
-            } catch (_: Exception) { // Changed e to _
-                // Log error or handle corrupted data - return default
-                mapOf( // Default if error or no data
-                    "住宿區" to listOf("家鄉水餃", "山洞點"),
-                    "工作區" to emptyList(),
-                    "遠區" to emptyList()
+                val decodedMap = Json.decodeFromString(MapSerializer(String.serializer(), ListSerializer(String.serializer())), jsonString)
+                if (jsonString == "{}" && decodedMap.isEmpty()) {
+                    mapOf( // Provide default restaurants
+                        "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123"),
+                        "工作區" to listOf("公司餐廳", "附近便當店", "能量補給站", "活力輕食沙拉", "咖啡與簡餐"),
+                        "遠區" to listOf("景觀餐廳A", "特色小吃B", "秘境風味餐館", "山頂咖啡屋", "海邊燒烤BBQ")
+                    )
+                } else {
+                    decodedMap
+                }
+            } catch (_: Exception) { // Catch any deserialization errors
+                mapOf(
+                    "住宿區" to listOf("家鄉水餃", "山洞點", "麥當勞", "肯德基", "巷口炒飯", "阿嬤的滷肉飯", "深夜食堂", "Android Studio123"),
+                    "工作區" to listOf("公司餐廳", "附近便當店", "能量補給站", "活力輕食沙拉", "咖啡與簡餐"),
+                    "遠區" to listOf("景觀餐廳A", "特色小吃B", "秘境風味餐館", "山頂咖啡屋", "海邊燒烤BBQ")
                 )
             }
         }
