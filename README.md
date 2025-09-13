@@ -36,3 +36,10 @@
 
 *   **Grok**：負責將主要的 Python 程式碼邏輯轉換為 Kotlin。
 *   **Gemini**：提供程式碼生成、即時偵錯、功能迭代建議、UI 佈局調整、預設資料填充、解決編譯錯誤以及 README 文件撰寫與優化等全方位的開發輔助。
+
+## 使用工具
+
+*   Android Studio
+*   Visual Studio Code
+*   Gradle
+*   Python (用於 Grok 輔助轉換程式碼)
