@@ -15,9 +15,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview // 確保這行存在
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,23 +33,62 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun FoodGeneratorApp() {
-    var categories by remember { mutableStateOf(listOf("住宿區", "工作區", "遠區")) }
-    var restaurants by remember {
-        mutableStateOf<Map<String, List<String>>>( // Explicit type and use List<String>
-            mapOf(
-                "住宿區" to listOf( // Use listOf for immutable lists
-                    "家鄉水餃", "山洞點", "甘泉鴨肉麵", "民生炒手", "民族鍋+其他",
-                    "50嵐", "麥當勞", "肯德基", "必勝客", "真功夫", "阿滿早餐", "7-11"
-                ),
-                "工作區" to listOf<String>(), // Explicit type for empty list
-                "遠區" to listOf<String>()  // Explicit type for empty list
-            )
-        )
-    }
-    var selectedCategory by remember { mutableStateOf("住宿區") }
+    val context = LocalContext.current
+    val foodDataStore = remember { FoodDataStore(context) }
+    val scope = rememberCoroutineScope()
+
+    var categories by remember { mutableStateOf(emptyList<String>()) }
+    var restaurants by remember { mutableStateOf(emptyMap<String, List<String>>()) }
+    var selectedCategory by remember { mutableStateOf("") }
     var randomResult by remember { mutableStateOf("") }
     var newCategory by remember { mutableStateOf("") }
     var newRestaurant by remember { mutableStateOf("") }
+
+    var categoriesInitialLoadDone by remember { mutableStateOf(false) }
+    var restaurantsInitialLoadDone by remember { mutableStateOf(false) }
+
+    // Load categories from DataStore
+    LaunchedEffect(foodDataStore) {
+        foodDataStore.categoriesFlow.collect { loadedCategories ->
+            categories = loadedCategories
+            categoriesInitialLoadDone = true
+        }
+    }
+
+    // Load restaurants from DataStore
+    LaunchedEffect(foodDataStore) {
+        foodDataStore.restaurantsFlow.collect { loadedRestaurants ->
+            restaurants = loadedRestaurants
+            restaurantsInitialLoadDone = true
+        }
+    }
+
+    // Effect to manage selectedCategory based on loaded/updated categories
+    LaunchedEffect(categories, categoriesInitialLoadDone) {
+        if (categoriesInitialLoadDone) {
+            if (selectedCategory.isBlank() || !categories.contains(selectedCategory)) {
+                selectedCategory = categories.firstOrNull() ?: ""
+            }
+        }
+    }
+
+    // Save categories when they change after initial load
+    LaunchedEffect(categories) {
+        if (categoriesInitialLoadDone) {
+            scope.launch {
+                foodDataStore.saveCategories(categories)
+            }
+        }
+    }
+
+    // Save restaurants when they change after initial load
+    LaunchedEffect(restaurants) {
+        if (restaurantsInitialLoadDone) {
+            scope.launch {
+                foodDataStore.saveRestaurants(restaurants)
+            }
+        }
+    }
 
     MaterialTheme {
         Column(
@@ -62,15 +104,13 @@ fun FoodGeneratorApp() {
                 color = Color(0xFF2C3E50)
             )
 
-            // 分類選擇
-            AppDropdownMenu( // Renamed to avoid conflict if there was one, or clarify custom component
+            AppDropdownMenu(
                 items = categories,
                 selectedItem = selectedCategory,
                 onItemSelected = { selectedCategory = it },
                 label = "請選擇分類"
             )
 
-            // 分類管理
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -84,7 +124,10 @@ fun FoodGeneratorApp() {
                 Button(onClick = {
                     if (newCategory.isNotBlank() && newCategory !in categories) {
                         categories = categories + newCategory
-                        restaurants = restaurants + (newCategory to listOf<String>()) // Add with empty list
+                        // Ensure new category has an entry in restaurants map
+                        if (!restaurants.containsKey(newCategory)){
+                            restaurants = restaurants + (newCategory to emptyList())
+                        }
                         selectedCategory = newCategory
                         newCategory = ""
                     }
@@ -95,15 +138,14 @@ fun FoodGeneratorApp() {
                     if (categories.size > 1 && categories.contains(selectedCategory)) {
                         val categoryToRemove = selectedCategory
                         categories = categories - categoryToRemove
-                        restaurants = restaurants - categoryToRemove
-                        selectedCategory = categories.firstOrNull() ?: ""
+                        restaurants = restaurants - categoryToRemove // This also removes the restaurants for that category
+                        // selectedCategory will be updated by LaunchedEffect(categories, ...)
                     }
                 }) {
                     Text("刪除分類")
                 }
             }
 
-            // 餐廳列表
             Text("餐廳列表", fontSize = 18.sp)
             LazyColumn(
                 modifier = Modifier
@@ -112,7 +154,7 @@ fun FoodGeneratorApp() {
                     .background(Color.White)
                     .border(1.dp, Color.Gray)
             ) {
-                items(restaurants[selectedCategory] ?: listOf()) { restaurant -> // Use listOf() for safety
+                items(restaurants[selectedCategory] ?: emptyList()) { restaurant ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -131,10 +173,9 @@ fun FoodGeneratorApp() {
                 }
             }
 
-            // 隨機選擇
             Button(
                 onClick = {
-                    val currentRestaurants = restaurants[selectedCategory] ?: listOf()
+                    val currentRestaurants = restaurants[selectedCategory] ?: emptyList()
                     randomResult = if (currentRestaurants.isNotEmpty()) {
                         "你可以去: ${currentRestaurants.random()}"
                     } else {
@@ -147,10 +188,8 @@ fun FoodGeneratorApp() {
                 Text("吃什麼？", color = Color.White)
             }
 
-            // 隨機結果
             Text(randomResult, fontSize = 16.sp)
 
-            // 新增餐廳
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -162,16 +201,9 @@ fun FoodGeneratorApp() {
                     modifier = Modifier.weight(1f)
                 )
                 Button(onClick = {
-                    if (newRestaurant.isNotBlank() && selectedCategory.isNotBlank()) {
-                         restaurants[selectedCategory]?.let { currentList ->
-                            restaurants = restaurants + (selectedCategory to (currentList + newRestaurant))
-                        } ?: run {
-                             // If the category somehow has no list (e.g., new category not yet in map fully)
-                             // This case should ideally be handled by ensuring selectedCategory always has a list
-                             if (categories.contains(selectedCategory)){ // ensure category exists
-                                restaurants = restaurants + (selectedCategory to listOf(newRestaurant))
-                             }
-                        }
+                    if (newRestaurant.isNotBlank() && selectedCategory.isNotBlank() && categories.contains(selectedCategory)) {
+                        val currentList = restaurants[selectedCategory] ?: emptyList()
+                        restaurants = restaurants + (selectedCategory to (currentList + newRestaurant))
                         newRestaurant = ""
                     }
                 }) {
@@ -183,7 +215,7 @@ fun FoodGeneratorApp() {
 }
 
 @Composable
-fun AppDropdownMenu( // Renamed to avoid conflict
+fun AppDropdownMenu(
     items: List<String>,
     selectedItem: String,
     onItemSelected: (String) -> Unit,
@@ -203,7 +235,7 @@ fun AppDropdownMenu( // Renamed to avoid conflict
             },
             modifier = Modifier.fillMaxWidth()
         )
-        androidx.compose.material3.DropdownMenu( // Explicitly use Material 3 DropdownMenu
+        androidx.compose.material3.DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
@@ -223,5 +255,7 @@ fun AppDropdownMenu( // Renamed to avoid conflict
 @Preview
 @Composable
 fun FoodGeneratorAppPreview() {
+    // Preview might not work correctly with DataStore context.
+    // For a working preview, you might need to pass mock data or a fake DataStore.
     FoodGeneratorApp()
 }
