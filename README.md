@@ -27,3 +27,8 @@
 
 *   Kotlin
 *   Jetpack Compose for UI
+
+## 開發輔助
+
+*   **Grok**：負責將主要的 Python 程式碼邏輯轉換為 Kotlin。
+*   **Gemini**：協助進行後續的程式碼偵錯、功能完善以及其他開發輔助項目。
