@@ -43,3 +43,5 @@
 *   Visual Studio Code
 *   Gradle
 *   Python (用於 Grok 輔助轉換程式碼)
+
+### 以上README.md使用Gemini生成
